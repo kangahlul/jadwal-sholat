@@ -3775,72 +3775,27 @@
             // Show loading state
             surahList.innerHTML = '<div class="loading show"><div class="loading-spinner"></div><p>Memuat daftar surah...</p></div>';
             
-            // Try multiple API endpoints
-            const apiUrls = [
-                'https://api.alquran.cloud/v1/surah',
-                'https://equran.id/api/surat',
-                'https://api.quran.com/api/v4/chapters?language=id'
-            ];
-            
-            tryLoadQuranData(apiUrls, 0);
-        }
-        
-        function tryLoadQuranData(apiUrls, index) {
-            if (index >= apiUrls.length) {
-                // All APIs failed, show offline data
-                loadOfflineQuranData();
-                return;
-            }
-            
-            const apiUrl = apiUrls[index];
-            console.log(`Trying API ${index + 1}: ${apiUrl}`);
-            
-            fetch(apiUrl)
+            // Try API first, then fallback to offline data
+            fetch('https://api.alquran.cloud/v1/surah')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
+                        throw new Error('Network response was not ok');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log('API Response:', data);
-                    
-                    // Handle different API response formats
-                    let surahData = null;
-                    
                     if (data.code === 200 && data.data) {
-                        // AlQuran.cloud format
-                        surahData = data.data;
-                    } else if (Array.isArray(data)) {
-                        // eQuran.id format
-                        surahData = data.map(surah => ({
-                            number: surah.nomor,
-                            name: surah.nama,
-                            englishName: surah.nama_latin,
-                            numberOfAyahs: surah.jumlah_ayat
-                        }));
-                    } else if (data.chapters) {
-                        // Quran.com format
-                        surahData = data.chapters.map(surah => ({
-                            number: surah.id,
-                            name: surah.name_arabic,
-                            englishName: surah.name_simple,
-                            numberOfAyahs: surah.verses_count
-                        }));
-                    }
-                    
-                    if (surahData && surahData.length > 0) {
-                        surahs = surahData;
+                        surahs = data.data;
                         renderSurahList();
-                        console.log(`Successfully loaded from API ${index + 1}`);
+                        console.log('Successfully loaded Quran data from API');
                     } else {
-                        throw new Error('Invalid data format');
+                        throw new Error('Invalid data received');
                     }
                 })
                 .catch(error => {
-                    console.error(`API ${index + 1} failed:`, error);
-                    // Try next API
-                    tryLoadQuranData(apiUrls, index + 1);
+                    console.error('Error loading Quran data from API:', error);
+                    // Load offline data as fallback
+                    loadOfflineQuranData();
                 });
         }
         
@@ -3869,7 +3824,6 @@
                 {number: 18, name: 'الكهف', englishName: 'Al-Kahf', numberOfAyahs: 110},
                 {number: 19, name: 'مريم', englishName: 'Maryam', numberOfAyahs: 98},
                 {number: 20, name: 'طه', englishName: 'Taha', numberOfAyahs: 135}
-                // Add more popular surahs
             ];
             
             // Add remaining surahs with basic info
@@ -3878,14 +3832,12 @@
                     number: i,
                     name: `سورة ${i}`,
                     englishName: `Surah ${i}`,
-                    numberOfAyahs: Math.floor(Math.random() * 200) + 10 // Random for demo
+                    numberOfAyahs: Math.floor(Math.random() * 200) + 10
                 });
             }
             
             renderSurahList();
-            
-            // Show info message
-            showInfo('Menggunakan data offline. Beberapa fitur mungkin terbatas.');
+            showInfo('Mode offline: Menampilkan daftar surah dasar. Konten lengkap memerlukan koneksi internet.');
         }
 
         function renderSurahList() {
@@ -3900,7 +3852,7 @@
                     <div class="surah-english">${surah.englishName}</div>
                     <div class="surah-ayahs">${surah.numberOfAyahs} ayat</div>
                 `;
-                pun
+                
                 surahItem.addEventListener('click', () => {
                     loadSurah(surah.number);
                 });
@@ -3944,21 +3896,11 @@
                 })
                 .catch(error => {
                     console.error('Error loading surah:', error);
-                    
-                    // Show offline message with basic surah info
                     quranContent.innerHTML = `
                         <div class="quran-error">
-                            <i class="fas fa-wifi" style="font-size: 3rem; margin-bottom: 20px; color: var(--warning-color);"></i>
-                            <h3>Koneksi Terbatas</h3>
-                            <p>Tidak dapat memuat konten surah ${surah ? surah.englishName : surahNumber} saat ini.</p>
-                            <div style="margin: 20px 0; padding: 20px; background: var(--background-color); border-radius: 12px;">
-                                <h4>${surah ? surah.name : 'Surah ' + surahNumber}</h4>
-                                <p><strong>${surah ? surah.englishName : 'Unknown'}</strong></p>
-                                <p>${surah ? surah.numberOfAyahs : '?'} ayat</p>
-                            </div>
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">
-                                Fitur Al-Quran memerlukan koneksi internet yang stabil.
-                            </p>
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Gagal Memuat Surah</h3>
+                            <p>Tidak dapat memuat surah ${surah ? surah.englishName : surahNumber}. Periksa koneksi internet Anda.</p>
                             <button class="quran-retry-btn" onclick="loadSurah(${surahNumber})">
                                 <i class="fas fa-refresh"></i> Coba Lagi
                             </button>
@@ -3968,77 +3910,28 @@
         }
 
         async function loadSurahFromAPI(surahNumber) {
-            // Try multiple API sources
-            const apiSources = [
-                {
-                    arabic: `https://api.alquran.cloud/v1/surah/${surahNumber}/ar.alafasy`,
-                    translation: `https://api.alquran.cloud/v1/surah/${surahNumber}/id.indonesian`
-                },
-                {
-                    arabic: `https://equran.id/api/surat/${surahNumber}`,
-                    translation: `https://equran.id/api/surat/${surahNumber}`
-                }
-            ];
+            const [arabicResponse, translationResponse] = await Promise.all([
+                fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/ar.alafasy`),
+                fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/id.indonesian`)
+            ]);
             
-            for (let i = 0; i < apiSources.length; i++) {
-                try {
-                    const source = apiSources[i];
-                    console.log(`Trying surah API ${i + 1}`);
-                    
-                    const [arabicResponse, translationResponse] = await Promise.all([
-                        fetch(source.arabic),
-                        fetch(source.translation)
-                    ]);
-                    
-                    if (!arabicResponse.ok || !translationResponse.ok) {
-                        throw new Error(`HTTP error: ${arabicResponse.status}/${translationResponse.status}`);
-                    }
-                    
-                    const [arabicData, translationData] = await Promise.all([
-                        arabicResponse.json(),
-                        translationResponse.json()
-                    ]);
-                    
-                    // Handle different API formats
-                    let processedArabic, processedTranslation;
-                    
-                    if (i === 0) {
-                        // AlQuran.cloud format
-                        if (arabicData.code !== 200 || translationData.code !== 200) {
-                            throw new Error('Invalid API response code');
-                        }
-                        processedArabic = arabicData.data;
-                        processedTranslation = translationData.data;
-                    } else {
-                        // eQuran.id format
-                        processedArabic = {
-                            name: arabicData.nama,
-                            englishName: arabicData.nama_latin,
-                            numberOfAyahs: arabicData.jumlah_ayat,
-                            ayahs: arabicData.ayat?.map(ayah => ({
-                                numberInSurah: ayah.nomor,
-                                text: ayah.ar
-                            })) || []
-                        };
-                        processedTranslation = {
-                            ayahs: arabicData.ayat?.map(ayah => ({
-                                text: ayah.idn
-                            })) || []
-                        };
-                    }
-                    
-                    return {
-                        arabicData: processedArabic,
-                        translationData: processedTranslation
-                    };
-                    
-                } catch (error) {
-                    console.error(`API source ${i + 1} failed:`, error);
-                    if (i === apiSources.length - 1) {
-                        throw error;
-                    }
-                }
+            if (!arabicResponse.ok || !translationResponse.ok) {
+                throw new Error('API request failed');
             }
+            
+            const [arabicData, translationData] = await Promise.all([
+                arabicResponse.json(),
+                translationResponse.json()
+            ]);
+            
+            if (arabicData.code !== 200 || translationData.code !== 200) {
+                throw new Error('Invalid API response');
+            }
+            
+            return {
+                arabicData: arabicData.data,
+                translationData: translationData.data
+            };
         }
 
         async function loadSurahFallback(surahNumber) {
@@ -4053,10 +3946,10 @@
             
             // Create sample ayahs for demonstration
             const sampleAyahs = [];
-            for (let i = 1; i <= Math.min(surah.numberOfAyahs, 5); i++) {
+            for (let i = 1; i <= Math.min(surah.numberOfAyahs, 3); i++) {
                 sampleAyahs.push({
                     numberInSurah: i,
-                    text: `بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ (${i})` // Sample Arabic text
+                    text: `بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ (${i})` // Sample Arabic text
                 });
             }
             
@@ -4076,8 +3969,6 @@
                     ayahs: sampleTranslations
                 }
             };
-        } ${surah ? surah.englishName : surahNumber}`);
-            }
         }
 
         function renderSurahContent(arabicData, translationData) {
@@ -4091,13 +3982,12 @@
                 return;
             }
             
+            // Check if this is offline data
+            const isOfflineData = arabicData.ayahs.length <= 5 && arabicData.ayahs[0]?.text?.includes('بِسْمِ');
+            
             // Create surah header
             const surahHeader = document.createElement('div');
             surahHeader.className = 'quran-surah-header';
-            
-            // Check if this is offline/fallback data
-            const isOfflineData = arabicData.ayahs && arabicData.ayahs.length <= 5 && arabicData.ayahs[0]?.text?.includes('(بِسْمِ');
-            
             surahHeader.innerHTML = `
                 <h2>${arabicData.name || 'Surah'} - ${arabicData.englishName || 'Unknown'}</h2>
                 <p>${arabicData.numberOfAyahs || arabicData.ayahs.length} ayat${arabicData.revelationType ? ' - ' + arabicData.revelationType : ''}</p>
@@ -4115,8 +4005,7 @@
                 const ayahElement = document.createElement('div');
                 ayahElement.className = 'quran-ayah';
                 
-                // Check if this is sample/offline data
-                const isOfflineAyah = ayah.text && ayah.text.includes('(بِسْمِ');
+                const isOfflineAyah = ayah.text && ayah.text.includes('بِسْمِ');
                 
                 ayahElement.innerHTML = `
                     <div class="quran-ayah-number">${ayah.numberInSurah || index + 1}</div>
@@ -4126,8 +4015,7 @@
                 ayahsContainer.appendChild(ayahElement);
             });
             
-            // Add info message if using offline data
-            const isOfflineData = arabicData.ayahs && arabicData.ayahs.length <= 5 && arabicData.ayahs[0]?.text?.includes('(بِسْمِ');
+            // Add offline info if needed
             if (isOfflineData) {
                 const offlineInfo = document.createElement('div');
                 offlineInfo.style.cssText = 'background: rgba(255, 152, 0, 0.1); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; border-left: 4px solid #ff9800;';
